@@ -5,7 +5,7 @@
 Dhaaga (Hindi for "thread") is a mobile-first web app (PWA) for **recHERsion 2026, PS2: Women's Safety**.
 She starts a safety *thread* for a journey. Each check-in is a *knot*. If a knot is missed, help moves
 closer in stages. The stages are run by the **server**, so they still work if her phone dies or loses signal.
-
+Live Demo:https://dhaaga-dg07.onrender.com
 ## What it does
 
 | Area | Behaviour |
