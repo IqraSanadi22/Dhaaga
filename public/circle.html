@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#14101F">
+<meta name="robots" content="noindex">
+<title>Dhaaga - Circle view</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Fraunces:wght@400;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="app"><main class="screen" id="root"><p class="muted">Loading...</p></main></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+/* Circle view: opened from an alert link. No account or app needed. */
+const [, , tt, ct] = location.pathname.split('/');
+const root = document.getElementById('root');
+let map = null, line = null, pin = null, fitted = false, busy = false, last = '';
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago'; };
+const logo = '<svg width="28" height="28" viewBox="0 0 30 30" fill="none" stroke="#F4B860" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 18c4-10 8 10 12 0s8 10 12 0"/></svg>';
+
+async function load() {
+  if (busy) return; busy = true;
+  try {
+    const r = await fetch(`/api/circle/${tt}/${ct}`);
+    const j = await r.json();
+    if (!r.ok) { root.innerHTML = `<div class="brand">${logo}Dhaaga</div><h1>${esc(j.error || 'Link not available')}</h1><p class="muted">Links are temporary and stop working after a journey ends.</p>`; return; }
+    draw(j);
+  } catch (e) { /* keep last view */ } finally { busy = false; }
+}
+function draw(j) {
+  const sig = JSON.stringify([j.stage, j.active, j.alerted, j.acks.length, j.last && j.last.t]);
+  const first = !root.dataset.ready;
+  if (sig !== last || first) {
+    last = sig; root.dataset.ready = '1';
+    let head, tone = '';
+    if (j.ended) { head = `<h1>${esc(j.name)} is safe.</h1><p class="muted">She ended her journey. Nothing more is needed from you. This link will stop working soon.</p>`; tone = 'ok'; }
+    else if (j.stage === 0) { head = `<h1>${esc(j.name)}'s thread is running.</h1><p class="muted">Nothing needs doing. You'll only hear more if a check-in goes unanswered. Her location is not shared with you unless that happens.</p>`; }
+    else if (j.stage === 1) { head = `<h1>${esc(j.name)} is being checked on.</h1><p class="muted">She missed a check-in and her phone is asking if she's okay. No action yet.</p>`; }
+    else { head = `<h1>${esc(j.name)} hasn't checked in.</h1><p class="muted">${j.reason === 'asked' ? 'She used her discreet trigger to ask for help.' : 'This may just be a missed check-in or poor signal. Please try calling her first.'}</p>`; tone = 'warn'; }
+    const callRow = j.responders.filter(r => r.phone).map(r => `<a class="btn ghost" href="tel:${esc(r.phone)}">Call ${esc(r.name)}</a>`).join('');
+    const actions = j.alerted ? `
+      <div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="label">You are ${j.role === 'responder' ? 'her Responder' : 'a trusted contact'}</div>
+        ${j.role === 'responder' ? `<button class="btn" data-a="heading">I'm heading to her</button><button class="btn ghost" data-a="called">I've called her</button><button class="btn ghost" data-a="cant">I can't reach her</button>` : `<button class="btn" data-a="watching">I'm watching her location</button><button class="btn ghost" data-a="called">I've called her</button><button class="btn ghost" data-a="cant">I can't reach her</button>`}
+        <a class="btn danger" href="tel:${esc(j.emergency)}">Call emergency services (${esc(j.emergency)})</a>${callRow}
+      </div>` : '';
+    root.innerHTML = `<div class="row between"><div class="brand">${logo}Dhaaga</div><span class="chip ${tone}"><span class="dot"></span>${j.ended ? 'Safe' : ['Calm', 'Checking', 'Alert', 'Escalated'][j.stage]}</span></div>${head}
+      ${j.alerted ? `<div class="map" id="map" role="img" aria-label="Map of her last known location"></div><p class="small muted" id="upd"></p>` : ''}
+      ${actions}
+      ${j.acks.length ? `<div class="card"><div class="label">Circle activity</div><div class="tl" style="margin-top:6px">${j.acks.map(a => `<div><time>${new Date(a.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time><span>${esc(a.name)} ${({ watching: 'is watching', heading: 'is heading to her', called: 'called her', cant: "can't reach her" })[a.action]}</span></div>`).join('')}</div></div>` : ''}
+      <p class="tiny muted">This is a temporary link made for you by ${esc(j.name)}. It does not prove anything has happened. If you think she is in danger, call ${esc(j.emergency)}.</p>`;
+    root.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
+      await fetch(`/api/circle/${tt}/${ct}/ack`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: b.dataset.a }) });
+      b.textContent = 'Shared with the circle ✓'; b.disabled = true; setTimeout(load, 300);
+    });
+    map = null; line = null; pin = null; fitted = false;
+  }
+  if (j.alerted) {
+    const pts = (j.trail || []).map(p => [p.lat, p.lng]);
+    const upd = document.getElementById('upd');
+    if (!j.last) { if (upd) upd.textContent = 'She is not sharing a location trail for this journey, or no point has arrived yet.'; return; }
+    if (upd) upd.innerHTML = `Last seen ${ago(j.last.t)} · <a style="color:var(--amber)" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${j.last.lat},${j.last.lng}">open in Maps</a>`;
+    const el = document.getElementById('map');
+    if (el && window.L) {
+      if (!map) { map = L.map(el, { zoomControl: true }).setView([j.last.lat, j.last.lng], 16); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map); }
+      if (line) line.setLatLngs(pts); else line = L.polyline(pts, { color: '#F0645B', weight: 4 }).addTo(map);
+      if (pin) pin.setLatLng([j.last.lat, j.last.lng]); else pin = L.circleMarker([j.last.lat, j.last.lng], { radius: 9, color: '#F0645B', fillColor: '#F0645B', fillOpacity: .9 }).addTo(map);
+      if (!fitted && pts.length > 1) { map.fitBounds(line.getBounds(), { padding: [30, 30], maxZoom: 17 }); fitted = true; } else if (!fitted) map.setView([j.last.lat, j.last.lng], 16);
+    } else if (el) { el.innerHTML = `<p class="small muted" style="padding:16px">Map could not load. Last position: ${j.last.lat.toFixed(5)}, ${j.last.lng.toFixed(5)}</p>`; }
+  }
+}
+load(); setInterval(load, 3000);
+</script>
+</body>
+</html>
