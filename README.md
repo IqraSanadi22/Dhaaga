@@ -9,7 +9,7 @@
 
 **Repository:** [https://github.com/IqraSanadi22/Dhaaga](https://github.com/IqraSanadi22/Dhaaga)
 
-**Demo video:** [Watch the demo](PASTE-YOUR-VIDEO-LINK-HERE)
+**Demo video:** [Watch the demo](https://drive.google.com/file/d/1COMCP0ay0-Kvlr7AqIfTPVeVXM3c-_BA/view?usp=sharing)
 
 ### 📊 Project Presentation
 
