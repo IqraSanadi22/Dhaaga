@@ -2,11 +2,25 @@
 
 > She shouldn't have to be the one who presses the button.
 
-Dhaaga (Hindi for "thread") is a mobile-first web app (PWA) for **recHERsion 2026, PS2: Women's Safety**.
-She starts a safety *thread* for a journey. Each check-in is a *knot*. If a knot is missed, help moves
-closer in stages. The stages are run by the **server**, so they still work if her phone dies or loses signal.
+**recHERsion 2026 · PS2: Women's Safety · Team AUREX**
 
-Live Demo:https://dhaaga-dg07.onrender.com
+**Live demo:** [https://dhaaga-dg07.onrender.com](https://dhaaga-dg07.onrender.com)
+(Free hosting sleeps when idle, so the first load can take up to a minute. Data on the live demo may reset when it restarts.)
+
+**Repository:** [https://github.com/IqraSanadi22/Dhaaga](https://github.com/IqraSanadi22/Dhaaga)
+
+**Demo video:** [Watch the demo](PASTE-YOUR-VIDEO-LINK-HERE)
+
+Dhaaga (Hindi for "thread") is a mobile-first web app (PWA). She starts a safety *thread* for a journey.
+Each check-in is a *knot*. If a knot is missed, help moves closer in stages. The stages are run by the
+**server**, so they still work if her phone dies or loses signal.
+
+## The problem
+
+Most safety apps either need a button press she may not be able to make, or alert everyone at once until the
+alerts get ignored. Contacts often have to install an app, and location is shared all the time, not just when it
+matters. Dhaaga is for women travelling alone (cabs, walks home, first-time meetings) and for the friends and
+family who make up her circle.
 
 ## What it does
 
@@ -19,20 +33,52 @@ Live Demo:https://dhaaga-dg07.onrender.com
 | **Privacy-first vault** | Location trail only with consent. Audio is opt-in and manual. Records are **encrypted on her device** (AES-GCM, PBKDF2) before upload, get a hash-chained time seal, auto-delete after a retention period and can be deleted at any time. Thread records are removed from the server 24 h after a journey ends. |
 | **Complaint draft** | Built only from facts she selects, with placeholders for her own account. She must confirm she has reviewed it before it can be copied or downloaded. |
 
-## Run it
+## Setup and run locally
+
+**Requirements:** Node.js 18 or newer (20.6+ if you want to use a `.env` file) and npm.
 
 ```bash
+git clone https://github.com/IqraSanadi22/Dhaaga.git
+cd Dhaaga
 npm install
-npm start          # http://localhost:3000
-npm test           # ~30 s end-to-end test of the whole escalation flow
+npm start          # open http://localhost:3000
 ```
 
-With no configuration, alerts appear in **Circle > Alert outbox** with the exact link each contact would receive,
-so the full flow can be demonstrated on one device. For real alerts, see `.env.example`: set `TELEGRAM_BOT_TOKEN`
-(contacts press Start on the invite link shown in the Circle tab) and `BASE_URL` (your deployed HTTPS URL).
-Location, microphone and installability need HTTPS when deployed (Render, Railway, Fly, etc.).
+Then open it on a phone-sized screen (or browser dev tools mobile view). Create a name, add contacts in the
+**Circle** tab, and start a thread from **Thread**.
 
-### Demo script (about 2 minutes)
+Run the automated end-to-end test of the escalation flow (about 30 seconds):
+
+```bash
+npm test
+```
+
+### Configuration (all optional)
+
+With no configuration the app works fully: alerts appear in **Circle > Alert outbox** with the exact link each
+contact would receive, so the whole flow can be demonstrated on one device.
+
+| Variable | Purpose |
+|---|---|
+| `BASE_URL` | Public URL used in links sent to contacts, e.g. `https://dhaaga-dg07.onrender.com`. Without it, links point to `localhost`. |
+| `TELEGRAM_BOT_TOKEN` | From @BotFather. Enables real alerts: contacts press Start on the invite link shown in the Circle tab. |
+| `ANTHROPIC_API_KEY` | Optional. Wording of the complaint draft. Without it, a template is used. |
+| `PORT` | Port to listen on (default 3000). |
+
+The app does not load `.env` by itself. Either export the variables, or run:
+
+```bash
+cp .env.example .env     # then fill in values
+node --env-file=.env server.js
+```
+
+### Deploying (how the live demo runs)
+
+Deployed on [Render](https://render.com) as a Node web service: build command `npm install`, start command
+`npm start`, with `BASE_URL` (and optionally `TELEGRAM_BOT_TOKEN`) set in the service's environment settings.
+HTTPS is needed for location, microphone and installability.
+
+## Demo script (about 3 minutes)
 1. Circle tab: add a Responder and a trusted contact, set stage delays to 10 s, mark them joined.
 2. Start a *Meeting* thread with **Demo timings**. Keep the location trail on.
 3. Press **Demo tool: make the next check-in due now**. Watch Stage 1, then 2, then 3.
@@ -44,21 +90,26 @@ Location, microphone and installability need HTTPS when deployed (Render, Railwa
 - Browser apps cannot guarantee background location, shake detection or the discreet trigger on a **locked phone**. Escalation itself runs on the server and does not depend on the phone once a check-in is missed.
 - The vault time seal shows a record existed at a time and was not altered. It is **not** a promise that any authority will accept it as evidence.
 - Accounts are device-bound with no password (prototype). A production version would add phone-number verification.
-- Data is stored in a JSON file on the server. Production would use a database.
+- Data is stored in a JSON file on the server, which is temporary on free hosting. Production would use a database.
+- Without a Telegram bot token, alerts are shown in the in-app outbox instead of being delivered.
 
-## Third-party resources and credits
+## Project structure
+```
+server.js           API, escalation state machine, vault seal chain, Telegram, complaint draft
+public/index.html   app shell
+public/app.js       all screens (plain JavaScript, no build step)
+public/app.css      styling
+public/circle.html  page contacts see when they open an alert link
+test/smoke.js       end-to-end test of the escalation flow
+.env.example        optional configuration
+```
+
+## Resources and credits
 - [Express](https://expressjs.com) (MIT): web server
-- [Leaflet](https://leafletjs.com) (BSD-2) and [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles, (c) OpenStreetMap contributors: circle map
+- [Leaflet](https://leafletjs.com) (BSD-2) and [OpenStreetMap](https://www.openstreetmap.org/copyright) tiles, © OpenStreetMap contributors: circle map
 - [Telegram Bot API](https://core.telegram.org/bots/api): optional alert delivery
+- [Render](https://render.com) and GitHub: hosting and source code
 - Optional: Anthropic Claude API for wording the complaint draft (falls back to a template)
 - Fonts: [Fraunces](https://fonts.google.com/specimen/Fraunces) and [DM Sans](https://fonts.google.com/specimen/DM+Sans) (SIL Open Font License) via Google Fonts
 - Browser APIs: Geolocation, Web Crypto, MediaRecorder, Wake Lock, DeviceMotion
-- AI assistance: the concept, mockups and code were developed with Claude (Anthropic).
-
-## Structure
-```
-server.js           API, escalation state machine, vault seal chain, Telegram, draft
-public/index.html   app shell          public/app.js    all screens (plain JS, no build)
-public/circle.html  page contacts see  public/app.css   styling
-test/smoke.js       end-to-end test
-```
+- AI assistance: design and code were developed with Claude (Anthropic).
